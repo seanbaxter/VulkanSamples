@@ -225,20 +225,7 @@ if(NOT WIN32 AND NOT ANDROID)
     endif()
     link_libraries(${VULKAN_LOADER} m ) 
 endif()
-if(WIN32)
-    set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_CRT_SECURE_NO_WARNINGS -D_USE_MATH_DEFINES")
-    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_CRT_SECURE_NO_WARNINGS -D_USE_MATH_DEFINES")
 
-    # If MSVC, disable some signed/unsigned mismatch warnings.
-    if (MSVC)
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /wd4267")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4267")
-    endif()
-
-else()
-    set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
-    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-sign-compare")
-endif()
 
 if (NOT WIN32)
     # extra setup for out-of-tree builds
