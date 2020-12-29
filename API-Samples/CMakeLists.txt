@@ -14,18 +14,7 @@ macro(assembly_to_spirv src basename)
         )
 endmacro()
 
-# If ANDROID is ON, turn on cross-compiling for it
-if(ANDROID)
-    set(CMAKE_SYSTEM_NAME "Android")
-    set(CMAKE_SYSTEM_VERSION "7")
-endif()
-
-if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-    add_definitions(-DVK_USE_PLATFORM_WIN32_KHR -DWIN32_LEAN_AND_MEAN)
-    set(DisplayServer Win32)
-elseif(CMAKE_SYSTEM_NAME STREQUAL "Android")
-    add_definitions(-DVK_USE_PLATFORM_ANDROID_KHR)
-elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     if (SAMPLES_WSI_SELECTION STREQUAL "XCB")
         if (NOT BUILD_WSI_XCB_SUPPORT)
             message( FATAL_ERROR "Selected XCB for samples build but not building Xcb support" )
@@ -58,61 +47,7 @@ include_directories(${SPIRV_TOOLS_INCLUDE_DIR})
 function(sampleWithSingleFile)
     foreach(TARG ${S_TARGETS})
         set(SAMPLE_NAME ${TARG})
-        if(ANDROID)
-            # Generate AndroidStudio project files.
-            MESSAGE("Generating AndroidStudio project:" ${SAMPLE_NAME})
-            # Replace "-" to "_", which is invalid in a package name.
-            STRING(REPLACE "-" "_" PACKAGE_NAME ${SAMPLE_NAME})
-            STRING(REGEX MATCH "^[0-9]" LEADING_DIGIT "${PACKAGE_NAME}")
-            if(NOT LEADING_DIGIT STREQUAL "")
-                set(PACKAGE_NAME "T${PACKAGE_NAME}")
-            endif()
-            set (PACKAGE_NAME vulkan.samples.${PACKAGE_NAME})
-            set (SAMPLE_DESCRIPTION "Vulkan sample: ${SAMPLE_NAME}")
-            file(COPY ./android/project_template/ DESTINATION ./android/${SAMPLE_NAME}/)
-
-            # Clear flags.
-            set (OTHER_FLAGS "")
-            set (ASSET_DIR "")
-            set (EXTRA_PERMISSIONS "")
-            set (VALIDATIONLAYER_PACKING "")
-
-            # Add extra setting for some samples.
-            # Include resource files.
-            set (SAMPLE_WITH_RESOURCES
-             draw_textured_cube init_texture immutable_sampler memory_barriers multiple_sets pipeline_cache
-             pipeline_derivative secondary_command_buffer separate_image_sampler spirv_assembly
-             spirv_specialization template)
-            if (";${SAMPLE_WITH_RESOURCES};" MATCHES ";${SAMPLE_NAME};")
-                set (ASSET_DIR "sourceSets.main.assets.srcDirs '../../data'")
-            endif()
-
-            # Add external storage access permission.
-            set (SAMPLE_WITH_EXTERNALSTORAGEACCESS pipeline_cache)
-            if (";${SAMPLE_WITH_EXTERNALSTORAGEACCESS};" MATCHES ";${SAMPLE_NAME};")
-                set (EXTRA_PERMISSIONS "<uses-permission android:name=\"android.permission.WRITE_EXTERNAL_STORAGE\"/>")
-            endif()
-
-            # Add validation layer settings.
-            set (SAMPLE_WITH_TOOLS create_debug_report_callback enable_validation_with_callback)
-            if (";${SAMPLE_WITH_TOOLS};" MATCHES ";${SAMPLE_NAME};")
-		    set (VALIDATIONLAYER_PACKING "sourceSets.main.jniLibs.srcDirs ")
-		    string(APPEND VALIDATIONLAYER_PACKING "file(android.ndkDirectory.path).absolutePath +\n")
-		    string(APPEND VALIDATIONLAYER_PACKING "\t\t\t\t'/sources/third_party/vulkan/src/build-android/jniLibs'")
-            endif()
-
-            # Cook template files.
-            set (TEMPLATE_FILES
-                android/${SAMPLE_NAME}/src/main/res/values/strings.xml
-                android/${SAMPLE_NAME}/src/main/AndroidManifest.xml
-                android/${SAMPLE_NAME}/build.gradle
-                android/${SAMPLE_NAME}/README.md
-            )
-            foreach(TEMPLATE_FILE ${TEMPLATE_FILES})
-                configure_file(${TEMPLATE_FILE} ${TEMPLATE_FILE} @ONLY)
-            endforeach(TEMPLATE_FILE)
-            SET(SETTINGS_GRADLE "${SETTINGS_GRADLE}include ':${SAMPLE_NAME}'\n")
-        elseif(UNIX)
+        if(UNIX)
             if (${SAMPLE_NAME} MATCHES spirv_assembly)
                 assembly_to_spirv(${SAMPLE_NAME}.vert ${SAMPLE_NAME})
                 assembly_to_spirv(${SAMPLE_NAME}.frag ${SAMPLE_NAME})
@@ -276,6 +211,7 @@ sampleWithSingleFile()
 
 if (NOT ANDROID)
 foreach (sample ${S_TARGETS})
+    set_source_files_properties(${sample}/${sample}.cpp PROPERTIES COMPILE_FLAGS -shader)
     install(TARGETS ${sample} RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 endforeach(sample)
 
