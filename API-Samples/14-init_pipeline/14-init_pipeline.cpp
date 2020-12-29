@@ -30,12 +30,29 @@ Create Graphics Pipeline
 #include <cstdlib>
 #include "cube_data.h"
 
-/* We've setup cmake to process 14-init_pipeline.vert and 14-init_pipeline.frag           */
-/* files containing the glsl shader code for this sample.  The generate-spirv script uses */
-/* glslangValidator to compile the glsl into spir-v and places the spir-v into a struct   */
-/* into a generated header file                                                           */
+// Vertex stage.
+[[using spirv: uniform, binding(0)]] mat4 mvp;
+[[using spirv: in, location(0)]]     vec4 vs_inPos;
+[[using spirv: in, location(1)]]     vec2 vs_inTexCoord;
+[[using spirv: out, location(0)]]    vec2 vs_outTexCoord;
 
-int sample_main(int argc, char *argv[]) {
+[[spirv::vert]]
+void vert_shader() {
+    vs_outTexCoord = vs_inTexCoord;
+    glvert_Output.Position = mvp * vs_inPos;
+}
+
+// Fragment stage.
+[[using spirv: uniform, binding(1)]] sampler2D tex;
+[[using spirv: in, location(0)]]     vec2 fs_inTexCoord;
+[[using spirv: out, location(0)]]    vec4 fs_outColor;
+
+[[spirv::frag]]
+void frag_shader() {
+    fs_outColor = vec4(1, 0, 0, 0); //textureLod(tex, fs_inTexCoord, 0);
+}
+
+int sample_main(int argc, char *argv[]) { 
     VkResult U_ASSERT_ONLY res;
     struct sample_info info = {};
     char sample_title[] = "Graphics Pipeline Sample";
@@ -65,16 +82,33 @@ int sample_main(int argc, char *argv[]) {
     init_descriptor_and_pipeline_layouts(info, false);
     init_descriptor_pool(info, false);
     init_descriptor_set(info, false);
-#include "14-init_pipeline.vert.h"
-#include "14-init_pipeline.frag.h"
-    VkShaderModuleCreateInfo vert_info = {};
-    VkShaderModuleCreateInfo frag_info = {};
-    vert_info.sType = frag_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    vert_info.codeSize = sizeof(__init_pipeline_vert);
-    vert_info.pCode = __init_pipeline_vert;
-    frag_info.codeSize = sizeof(__init_pipeline_frag);
-    frag_info.pCode = __init_pipeline_frag;
-    init_shaders(info, &vert_info, &frag_info);
+
+
+    VkShaderModuleCreateInfo module_info = {};
+    module_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    module_info.codeSize = __spirv_size;
+    module_info.pCode = (const uint32_t*)__spirv_data;
+
+    VkShaderModule module;
+    res = vkCreateShaderModule(info.device, &module_info, NULL, &module);
+
+    info.shaderStages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    info.shaderStages[0].pNext = NULL;
+    info.shaderStages[0].pSpecializationInfo = NULL;
+    info.shaderStages[0].flags = 0;
+    info.shaderStages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+    info.shaderStages[0].pName = @spirv(vert_shader);
+    info.shaderStages[0].module = module;
+    assert(res == VK_SUCCESS);
+    
+    info.shaderStages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    info.shaderStages[1].pNext = NULL;
+    info.shaderStages[1].pSpecializationInfo = NULL;
+    info.shaderStages[1].flags = 0;
+    info.shaderStages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    info.shaderStages[1].pName = @spirv(frag_shader);
+    info.shaderStages[1].module = module;
+    assert(res == VK_SUCCESS);    
 
     /* VULKAN_KEY_START */
     VkDynamicState dynamicStateEnables[2];  // Viewport + Scissor
@@ -203,6 +237,7 @@ int sample_main(int argc, char *argv[]) {
 
     res = vkCreateGraphicsPipelines(info.device, VK_NULL_HANDLE, 1, &pipeline, NULL, &info.pipeline);
     assert(res == VK_SUCCESS);
+    
     execute_end_command_buffer(info);
     execute_queue_command_buffer(info);
     /* VULKAN_KEY_END */
@@ -211,7 +246,7 @@ int sample_main(int argc, char *argv[]) {
     destroy_descriptor_pool(info);
     destroy_vertex_buffer(info);
     destroy_framebuffers(info);
-    destroy_shaders(info);
+    vkDestroyShaderModule(info.device, module, NULL);
     destroy_renderpass(info);
     destroy_descriptor_and_pipeline_layouts(info);
     destroy_uniform_buffer(info);
@@ -224,3 +259,4 @@ int sample_main(int argc, char *argv[]) {
     destroy_instance(info);
     return 0;
 }
+ 
